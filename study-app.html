@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI学習アプリ — 試作</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #F5F3EE; --bg2: #ECEAE4; --surface: #FFFFFF;
+  --border: #D8D5CE; --border2: #C8C5BC;
+  --text: #1A1916; --text2: #6B6860; --text3: #9B9890;
+  --accent: #2D4A3E; --accent2: #4A7C6A; --accent-light: #E8F0EC;
+  --danger: #A32D2D; --danger-light: #FAECEA;
+  --warn: #8B6914; --warn-light: #FBF3DD;
+  --mono: 'DM Mono', monospace; --sans: 'Noto Sans JP', sans-serif;
+  --radius: 10px; --radius-lg: 16px;
+}
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; display:flex; flex-direction:column; }
+
+header { padding: 16px 28px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:var(--surface); flex-wrap:wrap; gap:10px; }
+.logo { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:15px; font-weight:500; color:var(--accent); }
+.logo-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); }
+.api-area { display:flex; align-items:center; gap:8px; }
+.api-input { font-family:var(--mono); font-size:12px; padding:7px 12px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg); color:var(--text); width:220px; outline:none; }
+.api-input:focus { border-color: var(--accent2); }
+.api-status { font-family:var(--mono); font-size:11px; color:var(--text3); white-space:nowrap; }
+.api-status.ok { color: var(--accent2); }
+
+main { flex:1; max-width:760px; margin:0 auto; width:100%; padding:28px; }
+
+/* step1 setup */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; margin-bottom:16px; }
+.card-title { font-family:var(--mono); font-size:11px; font-weight:500; color:var(--text3); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:12px; }
+
+.drop-zone { border:1.5px dashed var(--border2); border-radius:var(--radius-lg); padding:28px 16px; text-align:center; cursor:pointer; background:var(--bg); position:relative; min-height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: all .15s; }
+.drop-zone:hover { border-color: var(--accent2); background: var(--accent-light); }
+.drop-zone.dragging { border-color: var(--accent); background: var(--accent-light); }
+.drop-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.drop-icon { font-size:28px; margin-bottom:8px; }
+.drop-label { font-size:14px; color:var(--text2); font-weight:500; }
+.drop-sub { font-size:12px; color:var(--text3); margin-top:4px; }
+.thumb-preview { max-width:100%; max-height:170px; border-radius:var(--radius); object-fit:contain; display:block; margin:0 auto; }
+
+.load-row { display:flex; gap:8px; margin-top:10px; }
+.ghost-btn { flex:1; padding:8px; border-radius:var(--radius); border:1px solid var(--border); background:var(--surface); font-size:12px; color:var(--text2); cursor:pointer; font-family:var(--sans); position:relative; overflow:hidden; text-align:center; }
+.ghost-btn:hover { border-color:var(--accent2); color:var(--accent); }
+.ghost-btn input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+
+.type-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.type-chip { display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg); cursor:pointer; font-size:13px; color:var(--text2); transition:all .12s; user-select:none; }
+.type-chip:hover { border-color:var(--accent2); }
+.type-chip.on { background:var(--accent-light); border-color:var(--accent2); color:var(--accent); font-weight:500; }
+.type-chip input { display:none; }
+
+.num-row { display:flex; align-items:center; gap:10px; }
+.num-input { width:64px; padding:8px 10px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:var(--mono); font-size:14px; text-align:center; outline:none; }
+.num-input:focus { border-color: var(--accent2); }
+.hint-input { width:100%; padding:9px 12px; font-size:13px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:var(--sans); outline:none; margin-top:8px; }
+.hint-input:focus { border-color: var(--accent2); }
+
+.run-btn { width:100%; padding:13px; border-radius:var(--radius); border:none; cursor:pointer; font-size:14px; font-weight:700; font-family:var(--sans); background:var(--accent); color:#fff; transition: all .15s; }
+.run-btn:hover:not(:disabled) { background: var(--accent2); }
+.run-btn:disabled { opacity:.35; cursor:not-allowed; }
+
+.prog { height:3px; background:var(--bg2); border-radius:2px; overflow:hidden; margin-top:10px; display:none; }
+.prog-fill { height:100%; width:0; background:var(--accent2); transition: width .3s ease; }
+.status-text { font-size:12px; color:var(--text3); font-family:var(--mono); margin-top:6px; min-height:16px; }
+
+/* quiz screen */
+#quizScreen, #resultScreen { display:none; }
+.quiz-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.quiz-progress-bar { flex:1; height:6px; background:var(--bg2); border-radius:3px; overflow:hidden; margin-right:14px; }
+.quiz-progress-fill { height:100%; background:var(--accent2); transition: width .3s ease; }
+.quiz-count { font-family:var(--mono); font-size:12px; color:var(--text2); white-space:nowrap; }
+.score-badge { font-family:var(--mono); font-size:12px; color:var(--accent); background:var(--accent-light); padding:4px 10px; border-radius:999px; margin-left:8px; }
+
+.q-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:28px 24px; min-height:280px; display:flex; flex-direction:column; }
+.q-type-badge { font-family:var(--mono); font-size:11px; padding:4px 10px; border-radius:999px; background:var(--bg2); color:var(--text2); display:inline-block; margin-bottom:14px; align-self:flex-start; }
+.q-text { font-size:18px; font-weight:500; line-height:1.6; margin-bottom:20px; }
+.q-sub { font-size:13px; color:var(--text3); margin-bottom:16px; }
+
+/* mcq */
+.mcq-list { display:flex; flex-direction:column; gap:8px; }
+.mcq-opt { padding:12px 16px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg); cursor:pointer; font-size:14px; transition: all .12s; text-align:left; }
+.mcq-opt:hover:not(.locked) { border-color: var(--accent2); background: var(--accent-light); }
+.mcq-opt.correct { background: var(--accent-light); border-color: var(--accent2); color: var(--accent); font-weight:500; }
+.mcq-opt.wrong { background: var(--danger-light); border-color: var(--danger); color: var(--danger); font-weight:500; }
+.mcq-opt.locked { cursor: default; }
+
+/* order */
+.order-target { min-height:50px; border:1.5px dashed var(--border2); border-radius:var(--radius); padding:10px; display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; align-items:center; }
+.order-pool { display:flex; flex-wrap:wrap; gap:8px; }
+.order-token { padding:8px 14px; border-radius:999px; background:var(--accent-light); border:1px solid var(--accent2); color:var(--accent); font-size:14px; cursor:pointer; user-select:none; transition: opacity .1s; }
+.order-token.used { opacity:0.25; pointer-events:none; }
+.order-token.placed { background:var(--surface); border:1px solid var(--border2); color:var(--text); cursor:pointer; }
+
+/* calc / vocab text input */
+.answer-input { width:100%; padding:12px 14px; font-size:15px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:var(--sans); outline:none; margin-bottom:14px; }
+.answer-input:focus { border-color: var(--accent2); }
+.answer-input.correct { border-color: var(--accent2); background: var(--accent-light); }
+.answer-input.wrong { border-color: var(--danger); background: var(--danger-light); }
+
+/* vocab flashcard */
+.flash-reveal { background:var(--accent-light); border:1px solid var(--accent2); border-radius:var(--radius); padding:14px 16px; font-size:15px; color:var(--accent); margin-bottom:16px; display:none; }
+
+/* mnemonic */
+.mnemonic-box { background:var(--warn-light); border:1px solid var(--warn); border-radius:var(--radius); padding:16px; color:#5C4708; font-size:14px; line-height:1.7; }
+
+.q-actions { margin-top:auto; display:flex; gap:8px; padding-top:16px; }
+.act-btn { flex:1; padding:11px; border-radius:var(--radius); border:1px solid var(--border); background:var(--surface); font-size:13px; font-weight:500; color:var(--text2); cursor:pointer; font-family:var(--sans); transition: all .12s; }
+.act-btn:hover { border-color:var(--accent2); color:var(--accent); }
+.act-btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.act-btn.primary:hover { background:var(--accent2); }
+.act-btn:disabled { opacity:.35; cursor:not-allowed; }
+
+/* results */
+.result-score { text-align:center; padding:24px 0; }
+.result-score-num { font-family:var(--mono); font-size:42px; font-weight:500; color:var(--accent); }
+.result-score-label { font-size:13px; color:var(--text3); margin-top:4px; }
+.review-list { display:flex; flex-direction:column; gap:8px; margin-top:18px; }
+.review-item { padding:12px 14px; border-radius:var(--radius); border:1px solid var(--border); font-size:13px; display:flex; gap:10px; align-items:flex-start; }
+.review-mark { font-size:14px; flex-shrink:0; }
+.review-item.wrong { background: var(--danger-light); border-color: #E5B5B0; }
+.review-item.right { background: var(--accent-light); border-color: #BFE0D2; }
+.review-text { flex:1; }
+.result-actions { display:flex; gap:8px; margin-top:18px; }
+
+footer { text-align:center; padding:14px; font-size:11px; font-family:var(--mono); color:var(--text3); border-top:1px solid var(--border); }
+footer a { color: var(--accent2); text-decoration:none; }
+
+@media (max-width:600px){
+  main { padding:16px; }
+  .type-grid { grid-template-columns:1fr; }
+  header { padding:14px 16px; }
+  .api-input { width:170px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-dot"></div>AI学習アプリ（試作）</div>
+  <div class="api-area">
+    <input class="api-input" type="password" id="apiKey" placeholder="sk-ant-... APIキーを入力">
+    <span class="api-status" id="apiStatus">未設定</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- STEP 1: setup -->
+  <div id="setupScreen">
+    <div class="card">
+      <div class="card-title">教材の画像</div>
+      <div class="drop-zone" id="dz">
+        <input type="file" id="fi" accept="image/jpeg,image/png,image/gif,image/webp">
+        <div id="dzInner">
+          <div class="drop-icon">📖</div>
+          <div class="drop-label">教科書・プリントの写真をドロップ</div>
+          <div class="drop-sub">jpg / png / gif / webp</div>
+        </div>
+      </div>
+      <div class="load-row">
+        <button class="ghost-btn" type="button">
+          <input type="file" id="loadJsonFi" accept="application/json">
+          📂 保存した問題セットを読み込む
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">出題形式（複数選択可）</div>
+      <div class="type-grid" id="typeGrid">
+        <label class="type-chip on" data-type="vocab"><input type="checkbox" checked>📇 単語暗記</label>
+        <label class="type-chip on" data-type="order"><input type="checkbox" checked>🔀 語順並び替え</label>
+        <label class="type-chip on" data-type="calc"><input type="checkbox" checked>🧮 計算</label>
+        <label class="type-chip on" data-type="mcq"><input type="checkbox" checked>☑️ マークシート選択式</label>
+        <label class="type-chip on" data-type="mnemonic"><input type="checkbox" checked>💡 覚え方の補助</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">問題数 ・ 補足</div>
+      <div class="num-row">
+        <span style="font-size:13px;color:var(--text2)">問題数:</span>
+        <input class="num-input" type="number" id="numQ" value="8" min="3" max="20">
+        <span style="font-size:12px;color:var(--text3)">問</span>
+      </div>
+      <input class="hint-input" id="extraHint" type="text" placeholder="教科や単元のヒント（任意）例：中学2年 英語 不定詞">
+    </div>
+
+    <button class="run-btn" id="genBtn" disabled type="button">問題を作る</button>
+    <div class="prog" id="prog"><div class="prog-fill" id="progFill"></div></div>
+    <div class="status-text" id="statusText"></div>
+  </div>
+
+  <!-- STEP 2: quiz -->
+  <div id="quizScreen">
+    <div class="quiz-top">
+      <div class="quiz-progress-bar"><div class="quiz-progress-fill" id="quizProgFill"></div></div>
+      <span class="quiz-count" id="quizCount">1 / 8</span>
+      <span class="score-badge" id="scoreBadge">0 正解</span>
+    </div>
+    <div class="q-card" id="qCard"></div>
+  </div>
+
+  <!-- STEP 3: results -->
+  <div id="resultScreen">
+    <div class="card">
+      <div class="result-score">
+        <div class="result-score-num" id="resultScoreNum">0 / 0</div>
+        <div class="result-score-label">正解</div>
+      </div>
+      <div class="review-list" id="reviewList"></div>
+      <div class="result-actions">
+        <button class="act-btn" id="redoBtn" type="button">もう一度解く</button>
+        <button class="act-btn" id="saveBtn" type="button">問題セットを保存</button>
+        <button class="act-btn primary" id="newBtn" type="button">新しい問題を作る</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  AI学習アプリ試作 — Anthropic Claude API使用 ·
+  APIキーは <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> で取得 ·
+  生成した問題はブラウザ内に保存され、再利用時はAPI不要です
+</footer>
+
+<script>
+(function(){
+  var apiKey = '';
+  var imgB64 = null, imgMtype = 'image/jpeg';
+  var selectedTypes = ['vocab','order','calc','mcq','mnemonic'];
+  var questions = [];
+  var curIdx = 0;
+  var score = 0;
+  var answeredLog = []; // {question, userAnswer, correctAnswer, isCorrect, type}
+
+  var apiKeyInput = document.getElementById('apiKey');
+  var apiStatusEl = document.getElementById('apiStatus');
+  var dz = document.getElementById('dz');
+  var fi = document.getElementById('fi');
+  var dzInner = document.getElementById('dzInner');
+  var genBtn = document.getElementById('genBtn');
+  var prog = document.getElementById('prog');
+  var progFill = document.getElementById('progFill');
+  var statusText = document.getElementById('statusText');
+
+  var setupScreen = document.getElementById('setupScreen');
+  var quizScreen = document.getElementById('quizScreen');
+  var resultScreen = document.getElementById('resultScreen');
+  var qCard = document.getElementById('qCard');
+  var quizProgFill = document.getElementById('quizProgFill');
+  var quizCount = document.getElementById('quizCount');
+  var scoreBadge = document.getElementById('scoreBadge');
+
+  // api key persistence
+  var saved = localStorage.getItem('study_app_key');
+  if(saved){ apiKeyInput.value = saved; apiKey = saved; updateApiStatus(); }
+  apiKeyInput.addEventListener('input', function(){
+    apiKey = apiKeyInput.value.trim();
+    localStorage.setItem('study_app_key', apiKey);
+    updateApiStatus(); checkRunnable();
+  });
+  function updateApiStatus(){
+    if(apiKey.startsWith('sk-ant-') && apiKey.length > 20){ apiStatusEl.textContent='設定済み ✓'; apiStatusEl.className='api-status ok'; }
+    else if(apiKey.length>0){ apiStatusEl.textContent='形式が違うかも'; apiStatusEl.className='api-status'; }
+    else { apiStatusEl.textContent='未設定'; apiStatusEl.className='api-status'; }
+  }
+
+  // image upload
+  fi.addEventListener('change', function(e){ if(e.target.files&&e.target.files[0]) readImg(e.target.files[0]); });
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('dragging'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('dragging'); });
+  dz.addEventListener('drop', function(e){ e.preventDefault(); dz.classList.remove('dragging'); if(e.dataTransfer.files&&e.dataTransfer.files[0]) readImg(e.dataTransfer.files[0]); });
+
+  function readImg(file){
+    imgMtype = file.type||'image/jpeg';
+    var r = new FileReader();
+    r.onload = function(ev){
+      imgB64 = ev.target.result.split(',')[1];
+      dzInner.innerHTML = '<img class="thumb-preview" src="'+ev.target.result+'" alt="プレビュー">';
+      statusText.textContent = '画像を読み込みました';
+      checkRunnable();
+    };
+    r.readAsDataURL(file);
+  }
+
+  // load saved json quiz set
+  document.getElementById('loadJsonFi').addEventListener('change', function(e){
+    var file = e.target.files[0]; if(!file) return;
+    var r = new FileReader();
+    r.onload = function(ev){
+      try{
+        var data = JSON.parse(ev.target.result);
+        if(data.questions && data.questions.length){
+          questions = data.questions.map(function(q){ return Object.assign({}, q, {userAnswer:null,isCorrect:null}); });
+          startQuiz();
+        } else { statusText.textContent = '問題データが見つかりませんでした'; }
+      }catch(err){ statusText.textContent = '読み込みエラー: ファイル形式が正しくないかもしれません'; }
+    };
+    r.readAsText(file);
+  });
+
+  // type selection
+  document.getElementById('typeGrid').addEventListener('click', function(e){
+    var chip = e.target.closest('.type-chip');
+    if(!chip) return;
+    var type = chip.getAttribute('data-type');
+    var cb = chip.querySelector('input');
+    setTimeout(function(){
+      if(cb.checked){ chip.classList.add('on'); if(selectedTypes.indexOf(type)===-1) selectedTypes.push(type); }
+      else { chip.classList.remove('on'); selectedTypes = selectedTypes.filter(function(t){ return t!==type; }); }
+      checkRunnable();
+    },0);
+  });
+
+  function checkRunnable(){
+    genBtn.disabled = !(imgB64 && apiKey.length>10 && selectedTypes.length>0);
+  }
+
+  // generate
+  genBtn.addEventListener('click', function(){
+    if(genBtn.disabled) return;
+    generateQuestions();
+  });
+
+  function typeRule(t){
+    return {
+      vocab: '単語暗記: {"type":"vocab","term":"用語","meaning":"意味・訳"}',
+      order: '語順並び替え: {"type":"order","tokens":["正しい順序の単語またはフレーズ配列"]} (tokensは正しい順番で、3〜8要素程度)',
+      calc: '計算問題: {"type":"calc","problem":"計算式や文章問題","answer":"数値または短い答え"}',
+      mcq: 'マークシート選択式: {"type":"mcq","question":"問題文","choices":["選択肢4つ"],"correctIndex":0}',
+      mnemonic: '覚え方の補助: {"type":"mnemonic","concept":"覚えにくい概念","tip":"覚え方のコツやイメージ"}'
+    }[t];
+  }
+
+  function generateQuestions(){
+    var numQ = parseInt(document.getElementById('numQ').value)||8;
+    var extra = document.getElementById('extraHint').value.trim();
+    genBtn.disabled = true;
+    prog.style.display='block'; progFill.style.width='0%';
+    statusText.textContent = 'AIが画像を解析して問題を作成中…';
+    var iv = setInterval(function(){ var c=parseFloat(progFill.style.width)||0; progFill.style.width=Math.min(c+Math.random()*8,88)+'%'; },400);
+
+    var rules = selectedTypes.map(typeRule).join('\n');
+    var prompt = 'この画像は教科書または配布プリントのページです。OCRで内容を読み取り、内容に基づいた問題を全部で'+numQ+'問作成してください。\n\n'+
+      '使ってよい出題形式とJSON形式:\n'+rules+'\n\n'+
+      '選んだ形式をバランスよく混ぜて、合計'+numQ+'問にしてください。'+
+      (extra ? '\n\n補足情報: '+extra : '')+
+      '\n\n必ず次の形式のJSONのみを返してください。説明文やコードブロックは不要です。\n{"questions":[ ...上記のいずれかの形式のオブジェクトを'+numQ+'個... ]}';
+
+    fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:3000, messages:[{ role:'user', content:[
+        { type:'image', source:{ type:'base64', media_type:imgMtype, data:imgB64 } },
+        { type:'text', text:prompt }
+      ]}]})
+    })
+    .then(function(res){ return res.ok? res.json() : res.json().then(function(e){ throw new Error(e.error&&e.error.message||('APIエラー '+res.status)); }); })
+    .then(function(data){
+      clearInterval(iv); progFill.style.width='100%';
+      setTimeout(function(){ prog.style.display='none'; },300);
+      var raw = (data.content||[]).map(function(c){ return c.text||''; }).join('');
+      var clean = raw.replace(/```json|```/g,'').trim();
+      var parsed;
+      try{ parsed = JSON.parse(clean); }catch(e){ statusText.textContent='問題の生成形式が読み取れませんでした。もう一度試してください。'; genBtn.disabled=false; return; }
+      if(!parsed.questions || !parsed.questions.length){ statusText.textContent='問題が生成されませんでした。もう一度試してください。'; genBtn.disabled=false; return; }
+      questions = parsed.questions.map(function(q){ return Object.assign({}, q, {userAnswer:null,isCorrect:null}); });
+      statusText.textContent = numQ+'問の問題を作成しました！';
+      genBtn.disabled = false;
+      startQuiz();
+    })
+    .catch(function(err){
+      clearInterval(iv); prog.style.display='none';
+      statusText.textContent = 'エラー: '+err.message;
+      genBtn.disabled = false;
+    });
+  }
+
+  function startQuiz(){
+    curIdx = 0; score = 0; answeredLog = [];
+    setupScreen.style.display='none'; resultScreen.style.display='none'; quizScreen.style.display='block';
+    renderQuestion();
+  }
+
+  function typeLabel(t){ return {vocab:'単語暗記',order:'語順並び替え',calc:'計算',mcq:'選択式',mnemonic:'覚え方の補助'}[t]||t; }
+
+  function updateTopBar(){
+    quizProgFill.style.width = Math.round((curIdx/questions.length)*100)+'%';
+    quizCount.textContent = (curIdx+1)+' / '+questions.length;
+    scoreBadge.textContent = score+' 正解';
+  }
+
+  function renderQuestion(){
+    updateTopBar();
+    var q = questions[curIdx];
+    var html = '<span class="q-type-badge">'+typeLabel(q.type)+'</span>';
+
+    if(q.type === 'vocab'){
+      html += '<div class="q-text">「'+esc(q.term)+'」の意味は？</div>';
+      html += '<div class="flash-reveal" id="flashReveal">'+esc(q.meaning)+'</div>';
+      html += '<div class="q-actions">'+
+        '<button class="act-btn" id="revealBtn" type="button">答えを見る</button>'+
+        '<button class="act-btn" id="knewBtn" type="button" disabled>わかった</button>'+
+        '<button class="act-btn" id="didntBtn" type="button" disabled>わからなかった</button>'+
+        '</div>';
+      qCard.innerHTML = html;
+      document.getElementById('revealBtn').onclick = function(){
+        document.getElementById('flashReveal').style.display='block';
+        document.getElementById('knewBtn').disabled=false;
+        document.getElementById('didntBtn').disabled=false;
+        this.disabled = true;
+      };
+      document.getElementById('knewBtn').onclick = function(){ submitAnswer(true, '知っていた'); };
+      document.getElementById('didntBtn').onclick = function(){ submitAnswer(false, 'わからなかった'); };
+
+    } else if(q.type === 'order'){
+      var shuffled = q.tokens.map(function(t,i){ return {t:t,i:i}; });
+      for(var i=shuffled.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var tmp=shuffled[i]; shuffled[i]=shuffled[j]; shuffled[j]=tmp; }
+      html += '<div class="q-sub">並べ替えて正しい文を作ってください</div>';
+      html += '<div class="order-target" id="orderTarget"></div>';
+      html += '<div class="order-pool" id="orderPool"></div>';
+      html += '<div class="q-actions"><button class="act-btn primary" id="checkOrderBtn" type="button">答え合わせ</button></div>';
+      qCard.innerHTML = html;
+      var placed = [];
+      var pool = document.getElementById('orderPool');
+      var target = document.getElementById('orderTarget');
+      function renderPool(){
+        pool.innerHTML='';
+        shuffled.forEach(function(item, idx){
+          var used = placed.indexOf(idx) !== -1;
+          var span = document.createElement('span');
+          span.className = 'order-token'+(used?' used':'');
+          span.textContent = item.t;
+          span.onclick = function(){ if(used) return; placed.push(idx); renderPool(); renderTarget(); };
+          pool.appendChild(span);
+        });
+      }
+      function renderTarget(){
+        target.innerHTML='';
+        placed.forEach(function(idx, pos){
+          var item = shuffled[idx];
+          var span = document.createElement('span');
+          span.className = 'order-token placed';
+          span.textContent = item.t;
+          span.onclick = function(){ placed.splice(pos,1); renderPool(); renderTarget(); };
+          target.appendChild(span);
+        });
+      }
+      renderPool(); renderTarget();
+      document.getElementById('checkOrderBtn').onclick = function(){
+        var userOrder = placed.map(function(idx){ return shuffled[idx].t; });
+        var correct = userOrder.length===q.tokens.length && userOrder.every(function(t,i){ return t===q.tokens[i]; });
+        submitAnswer(correct, userOrder.join(' '));
+      };
+
+    } else if(q.type === 'calc'){
+      html += '<div class="q-text">'+esc(q.problem)+'</div>';
+      html += '<input class="answer-input" id="calcInput" type="text" placeholder="答えを入力" autocomplete="off">';
+      html += '<div class="q-actions"><button class="act-btn primary" id="checkCalcBtn" type="button">答え合わせ</button></div>';
+      qCard.innerHTML = html;
+      var inp = document.getElementById('calcInput');
+      inp.addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('checkCalcBtn').click(); });
+      document.getElementById('checkCalcBtn').onclick = function(){
+        var userVal = inp.value.trim();
+        var correctVal = String(q.answer).trim();
+        var isCorrect = userVal === correctVal || (parseFloat(userVal)===parseFloat(correctVal) && userVal!=='');
+        inp.classList.add(isCorrect?'correct':'wrong');
+        inp.disabled = true;
+        this.disabled = true;
+        setTimeout(function(){ submitAnswer(isCorrect, userVal); }, 500);
+      };
+
+    } else if(q.type === 'mcq'){
+      html += '<div class="q-text">'+esc(q.question)+'</div>';
+      html += '<div class="mcq-list" id="mcqList">';
+      q.choices.forEach(function(c,i){ html += '<button class="mcq-opt" data-i="'+i+'" type="button">'+esc(c)+'</button>'; });
+      html += '</div>';
+      qCard.innerHTML = html;
+      var opts = qCard.querySelectorAll('.mcq-opt');
+      opts.forEach(function(btn){
+        btn.onclick = function(){
+          var i = parseInt(btn.getAttribute('data-i'));
+          opts.forEach(function(b){ b.classList.add('locked'); });
+          opts[q.correctIndex].classList.add('correct');
+          if(i!==q.correctIndex) btn.classList.add('wrong');
+          setTimeout(function(){ submitAnswer(i===q.correctIndex, q.choices[i]); }, 600);
+        };
+      });
+
+    } else if(q.type === 'mnemonic'){
+      html += '<div class="q-text">'+esc(q.concept)+'</div>';
+      html += '<div class="mnemonic-box">💡 '+esc(q.tip)+'</div>';
+      html += '<div class="q-actions"><button class="act-btn primary" id="nextMnemonicBtn" type="button">次へ</button></div>';
+      qCard.innerHTML = html;
+      document.getElementById('nextMnemonicBtn').onclick = function(){ submitAnswer(true, '確認した'); };
+    }
+  }
+
+  function submitAnswer(isCorrect, userAnswerText){
+    if(isCorrect) score++;
+    var q = questions[curIdx];
+    answeredLog.push({ q:q, userAnswer:userAnswerText, isCorrect:isCorrect });
+    curIdx++;
+    if(curIdx >= questions.length){ showResults(); }
+    else { renderQuestion(); }
+  }
+
+  function showResults(){
+    quizScreen.style.display='none'; resultScreen.style.display='block';
+    document.getElementById('resultScoreNum').textContent = score+' / '+questions.length;
+    var list = document.getElementById('reviewList');
+    list.innerHTML = '';
+    answeredLog.forEach(function(log, i){
+      var div = document.createElement('div');
+      div.className = 'review-item '+(log.isCorrect?'right':'wrong');
+      var qText = log.q.term || log.q.problem || log.q.question || log.q.concept || (log.q.tokens?log.q.tokens.join(' '):'');
+      div.innerHTML = '<span class="review-mark">'+(log.isCorrect?'✅':'❌')+'</span>'+
+        '<span class="review-text"><strong>Q'+(i+1)+'.</strong> '+esc(qText)+'<br>'+
+        '<span style="color:var(--text3);font-size:12px">あなたの回答: '+esc(String(log.userAnswer))+'</span></span>';
+      list.appendChild(div);
+    });
+  }
+
+  document.getElementById('redoBtn').onclick = function(){ startQuiz(); };
+  document.getElementById('newBtn').onclick = function(){
+    resultScreen.style.display='none'; setupScreen.style.display='block';
+    document.getElementById('dzInner').innerHTML = '<div class="drop-icon">📖</div><div class="drop-label">教科書・プリントの写真をドロップ</div><div class="drop-sub">jpg / png / gif / webp</div>';
+    imgB64 = null; statusText.textContent=''; checkRunnable();
+  };
+  document.getElementById('saveBtn').onclick = function(){
+    var data = { savedAt: new Date().toISOString(), questions: questions.map(function(q){ var c=Object.assign({},q); delete c.userAnswer; delete c.isCorrect; return c; }) };
+    var blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    var a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='study-set-'+Date.now()+'.json'; a.click();
+  };
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+})();
+</script>
+</body>
+</html>
